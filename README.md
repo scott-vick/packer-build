@@ -30,8 +30,8 @@ export PKR_VAR_RHSMPassword
 In the Packer template, modify the following lines to the correct directory being used by the Packer process:
 
 ```sh
-variable "base_directory" {default = "/home/user1/packer/vbox"}
-variable "iso_directory" {default = "/home/user1/packer/iso"}
+variable "base_directory" {default = "/home/user1/packer/vbox"} # Example: /Users/macuser/packer-build/vbox
+variable "iso_directory" {default = "/home/user1/packer/iso"} # Example: /Users/macuser/packer-build/iso
 
         output = "/home/user1/vagrant/boxes/{{ .Provider }}-rhel7.box"
 
@@ -40,56 +40,59 @@ variable "iso_directory" {default = "/home/user1/packer/iso"}
         output = "/home/user1/vagrant/boxes/{{ .Provider }}-rhel9.box"
 
 ```
+
+Additionally, depending on the version of the Red Hat ISO you downloaded, it may be necessary to update the *iso_checksum* and *iso_url* lines to reflect the ISO you downloaded and its resulting checksum.
+
 ## Usage example
 
-A few motivating and useful examples of how your product can be used. Spice this up with code blocks and potentially more screenshots.
+Once the environment source file and the templates have been updated you are ready to execute a build. In the provided example, you can build three VM's for RHEL 7, 8 and 9 all at one time:
+
+First, validate the template is valid and that there are no issues with the template.
+
+```sh
+$ cd ~/packer-build
+$ source .set_env
+$ cd vbox
+$ packer validate virtualbox-build.pkr.hcl  
+```
+Once validated, you can start the build process. The following example will build and provision all three OS templates.
+
+```sh
+$ packer build virtualbox-build.pkr.hcl 
+```
+
+To build a single template VM, use the **_-only_** flag (in this example we are only building the RHEL 8 template.)
+
+```sh
+$ packer build -only=virtualbox-iso.rhel8 virtualbox-build.pkr.hcl 
+```
+
+To build all of the templates **_EXCEPT_** specific ones, use the the **_-except_** flag (in this example we are building RHEL 7 and 8 templates and skipping the RHEL 9 template)
+
+```sh
+$ packer build -except=virtualbox-iso.rhel9 virtualbox-build.pkr.hcl 
+```
 
 _For more examples and usage, please refer to the [Wiki][wiki]._
 
-## Development setup
-
-Describe how to install all development dependencies and how to run an automated test-suite of some kind. Potentially do this for multiple platforms.
-
-```sh
-make install
-npm test
-```
-
 ## Release History
 
-* 0.2.1
-    * CHANGE: Update docs (module code remains unchanged)
-* 0.2.0
-    * CHANGE: Remove `setDefaultXYZ()`
-    * ADD: Add `init()`
-* 0.1.1
-    * FIX: Crash when calling `baz()` (Thanks @GenerousContributorName!)
 * 0.1.0
-    * The first proper release
-    * CHANGE: Rename `foo()` to `bar()`
+    * Added README to include instructions and information.
 * 0.0.1
-    * Work in progress
+    * First release
 
 ## Meta
 
-Your Name – [@YourTwitter](https://twitter.com/dbader_org) – YourEmail@example.com
+Scott Vick - joebloe144@me.com
 
-Distributed under the XYZ license. See ``LICENSE`` for more information.
-
-[https://github.com/yourname/github-link](https://github.com/dbader/)
+Distributed under the MIT license. See ``LICENSE`` for more information.
 
 ## Contributing
 
-1. Fork it (<https://github.com/yourname/yourproject/fork>)
+1. Fork it (<https://github.com/scott-vick/packer-build>)
 2. Create your feature branch (`git checkout -b feature/fooBar`)
 3. Commit your changes (`git commit -am 'Add some fooBar'`)
 4. Push to the branch (`git push origin feature/fooBar`)
 5. Create a new Pull Request
 
-<!-- Markdown link & img dfn's -->
-[npm-image]: https://img.shields.io/npm/v/datadog-metrics.svg?style=flat-square
-[npm-url]: https://npmjs.org/package/datadog-metrics
-[npm-downloads]: https://img.shields.io/npm/dm/datadog-metrics.svg?style=flat-square
-[travis-image]: https://img.shields.io/travis/dbader/node-datadog-metrics/master.svg?style=flat-square
-[travis-url]: https://travis-ci.org/dbader/node-datadog-metrics
-[wiki]: https://github.com/yourname/yourproject/wiki
