@@ -1,0 +1,3 @@
+PKR_VAR_RHSMPassword='<Insert Password>'
+
+export PKR_VAR_RHSMPassword

@@ -1,0 +1,134 @@
+---
+- name: "Provision the Vagrant template"
+  hosts: all
+  become: true
+  vars:
+    major_ver: '{{ ansible_facts["distribution_major_version"] }}'
+
+  tasks:
+    - name: RHSM subscription
+      community.general.redhat_subscription:
+        state: present
+        username: user1@email.com
+        password: "{{ rhsm_password }}"
+      when: ansible_facts['distribution'] == "RedHat"
+
+    - name: Update the subscription manager package
+      ansible.builtin.package:
+        name: "subscription-manager-{{ rhsm_package_version }}"
+        state: present
+      when: major_ver == "7" or major_ver == "8"
+
+    - name: Install the rsyslog package when necessary
+      ansible.builtin.package:
+        name: rsyslog
+        state: present
+      when:
+        ansible_facts["distribution_major_version"] == "8"
+
+    - name: RHSM subscription
+      community.general.redhat_subscription:
+        release: "{{ os_release }}"
+      when: ansible_facts['distribution'] == "RedHat"
+
+    - name: Update all packages to the latest version for release "{{ os_release }}"
+      package:
+        name: '*'
+        state: latest
+
+    - name: Unregister box from RHSM
+      community.general.redhat_subscription:
+        state: absent
+      when: ansible_facts['distribution'] == "RedHat"
+
+    - name: Copy .bashrc file for vagrant user
+      ansible.builtin.copy:
+        src: files/bashrc_vagrant
+        dest: /home/vagrant/.bashrc
+        owner: vagrant
+        mode: "0644"
+
+    - name: Create .ssh directory for vagrant user
+      ansible.builtin.file:
+        path: /home/vagrant/.ssh
+        state: directory
+        mode: "0700"
+        owner: vagrant
+        group: vagrant
+
+    - name: Get the vagrant deploy ssh key
+      ansible.builtin.get_url:
+        url: https://github.com/mitchellh/vagrant/raw/master/keys/vagrant.pub
+        dest: /home/vagrant/.ssh/authorized_keys
+        mode: "0600"
+        owner: vagrant
+        group: vagrant
+
+    - name: Configure sshd
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#UseDNS '
+        line: 'UseDNS no'
+
+    - name: Stop syslog service
+      ansible.builtin.service:
+        name: rsyslog
+        state: stopped
+
+    - name: Stop auditd service
+      ansible.builtin.shell:
+        cmd: /sbin/service auditd stop
+
+    - name: Remove network udev rules
+      ansible.builtin.file:
+        path: /etc/udev/rules.d/70-persistent-net.rules
+        state: absent
+
+    - name: Log rotate
+      ansible.builtin.shell:
+        cmd: /usr/sbin/logrotate /etc/logrotate.conf
+
+    - name: Null logs
+      ansible.builtin.shell:
+        cmd: /bin/rm -rf /var/log/*-???????? /var/log/*.gz /var/log/dmesg.old /var/log/anaconda*
+
+    - name: Null audit logs
+      ansible.builtin.shell:
+        cmd: /bin/cat /dev/null > /var/log/audit/audit.log
+
+    - name: Null wtmp
+      ansible.builtin.shell:
+        cmd: /bin/cat /dev/null > /var/log/wtmp
+
+    - name: Null lastlog
+      ansible.builtin.shell:
+        cmd: /bin/cat /dev/null > /var/log/lastlog
+
+    - name: Create list of all files in /tmp abd /var/tmp
+      ansible.builtin.find:
+        paths: ["/tmp", "/var/tmp"]
+        patterns: "*"
+        hidden: true
+        recurse: true
+        file_type: any
+      register: tmp_list
+
+    - name: Find all key files in /etc/ssh
+      ansible.builtin.find:
+        paths: "/etc/ssh"
+        patterns: "*key*"
+        hidden: true
+        file_type: any
+      register: etc_ssh_list
+
+    - name: Cleanup of /tmp, /var/tmp and ssh keys
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      with_items:
+        - "{{ tmp_list.files }}"
+        - "{{ etc_ssh_list.files }}"
+
+    - name: Root history cleanup
+      ansible.builtin.shell:
+        cmd: /bin/cat /dev/null > /root/.bash_history

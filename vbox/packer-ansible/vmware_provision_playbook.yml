@@ -1,0 +1,138 @@
+---
+- name: "Provision the VMware template"
+  hosts: all
+  become: yes
+
+  tasks:
+    # - name: create ifcfg-eth0 file
+    #   copy:
+    #     src: ifcfg-eth0
+    #     dest: /etc/sysconfig/network-scripts
+    #     owner: root
+    #     group: root
+    #     mode: 0644
+    #   when: ansible_facts['distribution_major_version'] != "6"
+
+    # - name: update the grub config file
+    #   lineinfile:
+    #     path: /etc/default/grub
+    #     regexp: '^(GRUB_CMDLINE_LINUX=")(.*)(")$'
+    #     backrefs: yes
+    #     line: '\1\2 net.ifnames=0 biosdevname=0\3'
+    #   notify: compile_grub
+    #   when: ansible_facts['distribution_major_version'] != "6"
+
+    # - name: cleanup the old nic config files
+    #   shell:
+    #     cmd: "rm -f /etc/sysconfig/network-scripts/ifcfg-eno* && rm -f /etc/sysconfig/network-scripts/ifcfg-ens*"
+    #     warn: no
+    #   when: ansible_facts['distribution_major_version'] != "6"
+        
+    # - name: add driver for pvscsi
+    #   lineinfile:
+    #     path: /etc/dracut.conf
+    #     regexp: '^#add_drivers\+=.*'
+    #     line: add_drivers+="vmw_pvscsi"
+    #   notify: load_dracut
+
+    - name: create .ssh directory for deploy user
+      file:
+        path: /home/deploy/.ssh
+        state: directory
+        mode: 0700
+        owner: deploy
+    
+    - name: copy over the authorized_keys file for deploy user
+      copy:
+        src: deploy-pubkey
+        dest: /home/deploy/.ssh/authorized_keys
+        mode: 0600
+        owner: deploy
+        group: deploy
+
+    - name: create .ssh directory for root user for deployment
+      file:
+        path: /root/.ssh
+        state: directory
+        mode: 0700
+        owner: root
+        group: root
+    
+    - name: copy over the authorized_keys file for root user
+      copy:
+        src: root-deploy-pubkey
+        dest: /root/.ssh/authorized_keys
+        mode: 0600
+        owner: root
+        group: root
+
+    - name: configure sshd
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#UseDNS .+$'
+        line: 'UseDNS no'
+      notify: restart_sshd
+
+    - name: Stop syslog service
+      service:
+        name: rsyslog
+        state: stopped
+
+    - name: Stop auditd service
+      shell:
+        cmd: /sbin/service auditd stop 
+        warn: no
+
+    - name: remove network udev rules    
+      file:
+        path: /etc/udev/rules.d/70-persistent-net.rules
+        state: absent
+
+    - name: log rotate
+      shell: 
+        cmd: /usr/sbin/logrotate /etc/logrotate.conf
+
+    - name: null logs
+      shell:
+        cmd: /bin/rm -rf /var/log/*-???????? /var/log/*.gz /var/log/dmesg.old /var/log/anaconda*
+        warn: no
+
+    - name: null audit logs
+      shell:
+        cmd: /bin/cat /dev/null > /var/log/audit/audit.log
+
+    - name: null wtmp
+      shell:
+        cmd: /bin/cat /dev/null > /var/log/wtmp
+
+    - name: null lastlog
+      shell:
+        cmd: /bin/cat /dev/null > /var/log/lastlog
+
+    - name: cleanup root
+      shell:
+        cmd: /bin/rm -rf /root/.ssh/id* /root/.ssh/config /root/.tcshrc /root/.cshrc /root/.gnupg /root/.pki
+        warn: no
+
+    - name: cleanup /tmp
+      shell:
+        cmd: /bin/rm -rf /tmp/* /var/tmp/* /etc/ssh/*key*
+        warn: no
+
+    - name: root history cleanup
+      shell:
+        cmd: /bin/cat /dev/null > /root/.bash_history
+
+  handlers:
+    - name: compile_grub
+      shell:
+        cmd: grub2-mkconfig -o /boot/grub2/grub.cfg
+
+    - name: load_dracut
+      shell:
+        cmd: /usr/bin/dracut -f -v
+
+    - name: restart_sshd
+      service:
+        name: sshd
+        state: restarted
