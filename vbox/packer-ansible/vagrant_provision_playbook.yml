@@ -9,7 +9,7 @@
     - name: RHSM subscription
       community.general.redhat_subscription:
         state: present
-        username: user1@email.com
+        username: svick@redhat.com
         password: "{{ rhsm_password }}"
       when: ansible_facts['distribution'] == "RedHat"
 
